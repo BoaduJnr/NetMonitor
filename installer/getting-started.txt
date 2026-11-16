@@ -14,14 +14,16 @@ First steps
 
 Turning on the Ask AI tab (optional)
 ------------------------------------
-The Ask AI tab needs a free NVIDIA API key from build.nvidia.com.
-Create a text file named  .env  in this folder:
+Ask AI comes switched off: no AI service or key is included. To turn it
+on, open the Ask AI tab under any router, then choose a service (NVIDIA,
+OpenAI or Anthropic), type the model to use and paste your own API key.
+Get a key from:
 
-    %APPDATA%\Home Network Monitor
+    NVIDIA     build.nvidia.com
+    OpenAI     platform.openai.com/api-keys
+    Anthropic  console.anthropic.com
 
-containing this line, then restart the app:
-
-    NVIDIA_API_KEY=your-key-here
+Change any of these later with the "AI settings" button in the chat.
 
 Your privacy
 ------------

@@ -1,30 +1,70 @@
 // "Ask AI": a chat assistant that answers with live readings from your routers, through tool calls.
 // Read tools run straight away; anything that changes something is only *proposed* and appears in the
-// chat as a card the user has to approve. The NVIDIA API key stays on this PC's server.
+// chat as a card the user has to approve. The API key (NVIDIA, OpenAI or Anthropic) stays on this PC's server.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 
-const API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+// The AI services the app can use. "openai" style = OpenAI chat-completions format (NVIDIA uses it too).
+// There is no default: the app ships without keys, and the user picks a service, model and key in Ask AI.
+// `example` is only a placeholder hint in the model box.
+const PROVIDERS = {
+  nvidia: {
+    label: 'NVIDIA', style: 'openai', url: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    example: 'nvidia/nemotron-3.5-bolt-e4b', keyUrl: 'https://build.nvidia.com'
+  },
+  openai: {
+    label: 'OpenAI', style: 'openai', url: 'https://api.openai.com/v1/chat/completions',
+    example: 'gpt-5-mini', keyUrl: 'https://platform.openai.com/api-keys'
+  },
+  anthropic: {
+    label: 'Anthropic', style: 'anthropic', url: 'https://api.anthropic.com/v1/messages',
+    example: 'claude-sonnet-5-5', keyUrl: 'https://console.anthropic.com/settings/keys'
+  }
+};
+
+// Chat-completions messages → Anthropic Messages API { system, messages }.
+function toAnthropic(messages) {
+  let system = '';
+  const out = [];
+  const push = (role, blocks) => {
+    const last = out[out.length - 1];
+    if (last && last.role === role) last.content.push(...blocks);
+    else out.push({ role, content: blocks });
+  };
+  for (const m of messages) {
+    const text = String(m.content || '');
+    if (m.role === 'system') system += (system ? '\n\n' : '') + text;
+    else if (m.role === 'user') { if (text.trim()) push('user', [{ type: 'text', text }]); }
+    else if (m.role === 'assistant') {
+      const blocks = text.trim() ? [{ type: 'text', text }] : [];
+      for (const c of m.tool_calls || []) {
+        let input = {};
+        try { input = c.function.arguments ? JSON.parse(c.function.arguments) : {}; } catch { /* bad JSON: empty input */ }
+        blocks.push({ type: 'tool_use', id: c.id, name: c.function.name, input });
+      }
+      if (blocks.length) push('assistant', blocks);
+    } else if (m.role === 'tool') push('user', [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: text }]);
+  }
+  while (out.length && out[0].role !== 'user') out.shift(); // the conversation must start with the user
+  return { system, messages: out };
+}
+
+// Anthropic reply → the chat-completions message shape the rest of this file uses.
+function fromAnthropic(j) {
+  const blocks = Array.isArray(j.content) ? j.content : [];
+  return {
+    role: 'assistant',
+    content: blocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n'),
+    tool_calls: blocks.filter((b) => b.type === 'tool_use')
+      .map((b) => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input || {}) } }))
+  };
+}
+
 const MAX_TOOL_ROUNDS = 6;
 const MAX_HISTORY = 24;          // messages of earlier conversation sent with each question
 const MAX_TOOL_RESULT = 7000;    // characters of each tool result passed back to the model
-
-// Reads KEY=value lines from .env files (no extra packages needed). Later folders win, so the
-// user's own %APPDATA% copy overrides one next to server.js (handy when running from source).
-function loadEnv(dirs) {
-  const out = {};
-  for (const dir of dirs) {
-    try {
-      for (const line of fs.readFileSync(path.join(dir, '.env'), 'utf8').split(/\r?\n/)) {
-        const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
-        if (m && !line.trim().startsWith('#')) out[m[1]] = m[2].replace(/^["']|["']$/g, '');
-      }
-    } catch { /* no .env here */ }
-  }
-  return out;
-}
 
 const SYSTEM_PROMPT = `You are the assistant inside "Home Network Monitor", a Windows app that watches the user's home routers and the devices on them.
 
@@ -71,44 +111,102 @@ function describeFound(res) {
 }
 
 class Assistant {
-  constructor({ envDirs, tools }) {
-    this.envDirs = envDirs; // folders that may hold a .env file, lowest priority first
+  constructor({ settingsFile, tools }) {
+    this.settingsFile = settingsFile; // ai.json: what the user picked in Ask AI › AI settings
     this.tools = tools; // [{ name, description, parameters, action?: true, run(args, ctx) }]
   }
 
-  config() {
-    const env = { ...loadEnv(this.envDirs), ...process.env };
-    return { key: env.NVIDIA_API_KEY || '', model: env.NVIDIA_MODEL || 'nvidia/nemotron-3.5-bolt-e4b' };
+  readSettings() {
+    try {
+      const s = JSON.parse(fs.readFileSync(this.settingsFile, 'utf8'));
+      return { provider: s.provider, keys: s.keys || {}, models: s.models || {} };
+    } catch { return { provider: null, keys: {}, models: {} }; }
   }
 
+  // Only what the user saved in Ask AI › AI settings counts: no default service, model or key.
+  config(provider) {
+    const s = this.readSettings();
+    const id = PROVIDERS[provider] ? provider : PROVIDERS[s.provider] ? s.provider : null;
+    return {
+      provider: id, label: id ? PROVIDERS[id].label : null,
+      key: (id && s.keys[id]) || '', model: (id && s.models[id]) || '', s
+    };
+  }
+
+  // What the page may see: never a key, only its last 4 characters.
   status() {
-    const { key, model } = this.config();
-    return { configured: !!key, model };
+    const cfg = this.config();
+    return {
+      configured: !!(cfg.provider && cfg.key && cfg.model), provider: cfg.provider, providerLabel: cfg.label, model: cfg.model,
+      providers: Object.entries(PROVIDERS).map(([id, p]) => {
+        const key = cfg.s.keys[id] || '';
+        return { id, label: p.label, example: p.example, keyUrl: p.keyUrl, model: cfg.s.models[id] || '', hasKey: !!key, keyHint: key ? key.slice(-4) : '' };
+      })
+    };
   }
 
-  async callModel(messages, cfg) {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: cfg.model,
-        messages,
-        tools: this.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })),
-        tool_choice: 'auto',
-        temperature: 0.2,
-        max_tokens: 1200
-      }),
-      signal: AbortSignal.timeout(90 * 1000)
-    });
+  // Saves the provider, model and (optionally) a new key, after a quick test call with them.
+  async saveSettings(input) {
+    const id = String((input && input.provider) || '');
+    const p = PROVIDERS[id];
+    if (!p) throw new Error('Choose NVIDIA, OpenAI or Anthropic.');
+    const model = String(input.model || '').trim().slice(0, 120);
+    if (!model) throw new Error(`Enter the ${p.label} model to use (for example ${p.example}).`);
+    const newKey = String(input.key || '').trim();
+    if (/\s/.test(newKey) || newKey.length > 400) throw new Error("That doesn't look like an API key.");
+    const cur = this.config(id);
+    const key = newKey || cur.key;
+    if (!key) throw new Error(`Enter your ${p.label} API key.`);
+    await this.callModel([{ role: 'user', content: 'Reply with the word OK.' }], { provider: id, label: p.label, key, model }, { test: true });
+
+    const s = cur.s;
+    s.provider = id;
+    if (newKey) s.keys[id] = newKey;
+    s.models[id] = model;
+    fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
+    const tmp = this.settingsFile + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ provider: s.provider, keys: s.keys, models: s.models }, null, 2), 'utf8');
+    fs.renameSync(tmp, this.settingsFile);
+    return this.status();
+  }
+
+  // Sends one request. opts.test: no tools and a tiny answer (used to check a key and model).
+  async callModel(messages, cfg, opts = {}) {
+    const p = PROVIDERS[cfg.provider];
+    let headers;
+    let body;
+    if (p.style === 'anthropic') {
+      const { system, messages: msgs } = toAnthropic(messages);
+      headers = { 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' };
+      body = { model: cfg.model, max_tokens: opts.test ? 16 : 1500, messages: msgs };
+      if (system) body.system = system;
+      if (!opts.test) {
+        body.tools = this.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+        body.tool_choice = { type: 'auto' };
+      }
+    } else {
+      headers = { Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' };
+      body = { model: cfg.model, messages };
+      if (!opts.test) {
+        body.tools = this.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+        body.tool_choice = 'auto';
+      }
+      // OpenAI's newer (reasoning) models only take max_completion_tokens and the default temperature.
+      if (cfg.provider === 'openai') body.max_completion_tokens = opts.test ? 64 : 4000;
+      else Object.assign(body, { temperature: 0.2, max_tokens: opts.test ? 16 : 1200 });
+    }
+    const res = await fetch(p.url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(90 * 1000) });
     const text = await res.text();
     if (!res.ok) {
       let msg = text.slice(0, 300);
       try { const j = JSON.parse(text); msg = (j.error && (j.error.message || j.error)) || j.detail || j.title || msg; } catch { /* keep text */ }
-      if (res.status === 401 || res.status === 403) throw new Error('The NVIDIA key was refused. Check NVIDIA_API_KEY in %APPDATA%\\Home Network Monitor\\.env.');
-      if (res.status === 429) throw new Error('The AI service is busy or the key has hit its limit. Try again in a minute.');
-      throw new Error(`The AI service answered ${res.status}: ${msg}`);
+      if (res.status === 401 || res.status === 403) throw new Error(`The ${p.label} key was refused. Check it under Ask AI › AI settings.`);
+      if (res.status === 429) throw new Error(`${p.label} is busy or the key has hit its limit. Try again in a minute.`);
+      if (res.status === 404) throw new Error(`${p.label} doesn't know the model "${cfg.model}". Check the model name under Ask AI › AI settings. (${msg})`);
+      throw new Error(`${p.label} answered ${res.status}: ${msg}`);
     }
     const j = JSON.parse(text);
+    if (p.style === 'anthropic') return fromAnthropic(j);
     return j.choices && j.choices[0] && j.choices[0].message;
   }
 
@@ -154,7 +252,7 @@ class Assistant {
   // history: [{ role: 'user' | 'assistant', content }]; context: { router, section }
   async chat(history, context) {
     const cfg = this.config();
-    if (!cfg.key) throw new Error('No AI key set. Add NVIDIA_API_KEY to %APPDATA%\\Home Network Monitor\\.env, then restart the app.');
+    if (!cfg.provider || !cfg.key || !cfg.model) throw new Error('Ask AI isn\'t set up yet. Open AI settings at the top of this chat to choose a service, model and key.');
 
     const list = (context.routers || []).map((r) => `- id "${r.id}": ${r.name} (${r.kind}, ${r.model}, ${r.host})`).join('\n');
     const ctxLine = `Saved routers (use these exact ids in tool calls):\n${list || '- none'}\n` +
@@ -239,4 +337,4 @@ class Assistant {
   }
 }
 
-module.exports = { Assistant, loadEnv };
+module.exports = { Assistant, PROVIDERS, toAnthropic, fromAnthropic };

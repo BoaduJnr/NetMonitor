@@ -36,6 +36,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
+LicenseFile=..\LICENSE
 InfoAfterFile=getting-started.txt
 OutputDir={#OutDir}
 OutputBaseFilename=HomeNetworkMonitor-Setup-{#AppVersion}
@@ -64,6 +65,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Source: "getting-started.txt"; DestDir: "{app}"; DestName: "Getting started.txt"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Comment: "See the devices on your home network"
@@ -72,7 +74,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
-; Settings, routers, history and the .env key live in %APPDATA%\Home Network Monitor and are
+; Settings, routers, history and the Ask AI settings (ai.json) live in %APPDATA%\Home Network Monitor and are
 ; deliberately kept on uninstall, so reinstalling picks up where the user left off.
 
 [Code]

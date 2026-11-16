@@ -2071,14 +2071,97 @@ function setupAi() {
     saveChats();
     renderChat();
   });
-  api.aiStatus().then((s) => {
-    if (!s.configured) {
-      $('#aiModel').textContent = 'No AI key set. Add NVIDIA_API_KEY to %APPDATA%\\Home Network Monitor\\.env, then restart the app.';
-      $('#aiModel').className = 'small bad';
-    } else {
-      $('#aiModel').textContent = `Answers use live readings from this router (model: ${s.model}). Anything that changes something waits for your approval.`;
-    }
-  }).catch(() => {});
+  $('#aiSettingsBtn').addEventListener('click', () => showAiSetup(!aiSetupOpen));
+  $('#aiSetupCancel').addEventListener('click', () => showAiSetup(false));
+  $('#aiProvider').addEventListener('change', fillAiProvider);
+  $('#aiSetup').addEventListener('submit', saveAiSetup);
+  api.aiStatus().then(applyAiStatus).catch(() => {});
+}
+
+// ---------- Ask AI › AI settings (service, model and key) ----------
+let aiStatus = null;     // from the server: { configured, provider, providerLabel, model, providers: [...] }
+let aiSetupOpen = false;
+
+function applyAiStatus(s) {
+  aiStatus = s;
+  const head = $('#aiModel');
+  if (!s.configured) {
+    head.textContent = 'Set up Ask AI: choose an AI service, a model and your API key.';
+    head.className = 'muted small';
+    showAiSetup(true); // first open: ask for the key and model straight away
+  } else {
+    head.textContent = `Answers use live readings from this router (${s.providerLabel}, model: ${s.model}). Anything that changes something waits for your approval.`;
+    head.className = 'muted small';
+  }
+  $('#aiPrivacy').textContent = `Your question and the router readings needed to answer it are sent to ${s.configured ? s.providerLabel + "'s" : 'the chosen'} AI service. Passwords and Wi-Fi keys are never sent.`;
+}
+
+function showAiSetup(open) {
+  if (!aiStatus) return;
+  if (!open && !aiStatus.configured) open = true; // nothing to chat with until a key is saved
+  aiSetupOpen = open;
+  $('#aiSetup').hidden = !open;
+  $('#aiChatBody').hidden = open;
+  $('#aiSettingsBtn').classList.toggle('active', open);
+  if (!open) return;
+  const sel = $('#aiProvider');
+  if (!sel.options.length) {
+    sel.append(el('option', { value: '', text: 'Choose a service…', disabled: '' }),
+      ...aiStatus.providers.map((p) => el('option', { value: p.id, text: p.label })));
+  }
+  sel.value = aiStatus.provider || ''; // nothing picked until the user chooses
+  $('#aiSetupCancel').hidden = !aiStatus.configured;
+  $('#aiSetupIntro').textContent = aiStatus.configured
+    ? 'Change the AI service, model or key. The new settings are checked with a short test before they are saved.'
+    : 'To use Ask AI, choose an AI service, a model and paste your API key for it. The key stays on this PC.';
+  $('#aiSetupMsg').hidden = true;
+  fillAiProvider();
+}
+
+function fillAiProvider() {
+  const p = aiStatus.providers.find((x) => x.id === $('#aiProvider').value);
+  const model = $('#aiModelInput');
+  const key = $('#aiKey');
+  key.value = '';
+  model.disabled = key.disabled = !p;
+  if (!p) {
+    model.value = '';
+    model.placeholder = 'Choose a service first';
+    key.placeholder = 'Choose a service first';
+    $('#aiKeyHint').textContent = 'Ask AI works with NVIDIA, OpenAI or Anthropic. You need your own API key from one of them.';
+    return;
+  }
+  model.value = p.model || '';
+  model.placeholder = `e.g. ${p.example}`;
+  key.placeholder = p.hasKey ? `Saved key ending ${p.keyHint}. Leave blank to keep it` : `Paste your ${p.label} API key`;
+  $('#aiKeyHint').replaceChildren(`No key yet? Get one at `,
+    el('a', { href: p.keyUrl, target: '_blank', rel: 'noopener noreferrer', text: p.keyUrl.replace(/^https:\/\//, '') }),
+    `. Use any model your ${p.label} account can use.`);
+}
+
+async function saveAiSetup(e) {
+  e.preventDefault();
+  const msg = $('#aiSetupMsg');
+  const btn = $('#aiSetupSave');
+  msg.hidden = false;
+  const missing = !$('#aiProvider').value ? 'Choose an AI service.' : !$('#aiModelInput').value.trim() ? 'Enter the model to use.' : '';
+  if (missing) { msg.className = 'small bad ai-setup-wide'; msg.textContent = missing; return; }
+  btn.disabled = true;
+  msg.className = 'small muted ai-setup-wide';
+  msg.textContent = 'Checking the key and model…';
+  try {
+    const s = await api.aiSaveSettings({ provider: $('#aiProvider').value, model: $('#aiModelInput').value.trim(), key: $('#aiKey').value.trim() });
+    $('#aiKey').value = '';
+    applyAiStatus(s);
+    showAiSetup(false);
+    renderChat();
+    setStatus(`Ask AI now uses ${s.providerLabel} (${s.model}).`, 'good');
+  } catch (err) {
+    msg.className = 'small bad ai-setup-wide';
+    msg.textContent = cleanError(err);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ---------- Navigation ----------

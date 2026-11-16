@@ -385,18 +385,44 @@
             <h2 id="aiTitle">Ask AI</h2>
             <p class="muted small" id="aiModel">Answers use live readings from this router. Anything that changes something waits for your approval.</p>
           </div>
-          <button id="aiClear" class="with-icon clear-chat" type="button" title="Clear this router's chat">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
-            Clear chat
-          </button>
+          <div class="chat-head-actions">
+            <button id="aiSettingsBtn" class="with-icon" type="button" title="Choose the AI service, model and key">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+              AI settings
+            </button>
+            <button id="aiClear" class="with-icon clear-chat" type="button" title="Clear this router's chat">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+              Clear chat
+            </button>
+          </div>
         </div>
-        <div id="aiLog" class="chat-log" aria-live="polite"></div>
-        <div id="aiSuggest" class="chips chat-suggest"></div>
-        <form id="aiForm" class="chat-input">
-          <textarea id="aiInput" rows="2" placeholder="Ask about your routers, devices or connection…" aria-label="Your question"></textarea>
-          <button id="aiSend" class="primary" type="submit">Send</button>
+        <form id="aiSetup" class="settings-grid ai-setup" hidden>
+          <p id="aiSetupIntro" class="muted small ai-setup-wide">Choose the AI service that answers your questions, and paste your API key for it. The key stays on this PC.</p>
+          <label>AI service
+            <select id="aiProvider"></select>
+          </label>
+          <label>Model
+            <input id="aiModelInput" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="ai-setup-wide">API key
+            <input id="aiKey" type="password" autocomplete="off" spellcheck="false">
+          </label>
+          <p id="aiKeyHint" class="muted small ai-setup-wide"></p>
+          <p id="aiSetupMsg" class="small ai-setup-wide" hidden></p>
+          <div class="settings-actions">
+            <button id="aiSetupSave" class="primary" type="submit">Save</button>
+            <button id="aiSetupCancel" type="button">Cancel</button>
+          </div>
         </form>
-        <p class="muted small chat-privacy">Your question and the router readings needed to answer it are sent to NVIDIA's AI service. Passwords and Wi-Fi keys are never sent.</p>
+        <div id="aiChatBody" class="chat-body">
+          <div id="aiLog" class="chat-log" aria-live="polite"></div>
+          <div id="aiSuggest" class="chips chat-suggest"></div>
+          <form id="aiForm" class="chat-input">
+            <textarea id="aiInput" rows="2" placeholder="Ask about your routers, devices or connection…" aria-label="Your question"></textarea>
+            <button id="aiSend" class="primary" type="submit">Send</button>
+          </form>
+        </div>
+        <p id="aiPrivacy" class="muted small chat-privacy">Your question and the router readings needed to answer it are sent to the AI service you choose. Passwords and Wi-Fi keys are never sent.</p>
       </div>
     </section>
 

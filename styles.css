@@ -550,6 +550,12 @@ tr:not(.offline) .avatar.icon, .map-detail .avatar.icon { color: var(--text); }
 .chat-input textarea { flex: 1; resize: none; min-height: 46px; }
 .chat-input button { height: 46px; }
 .chat-privacy { margin: 0; }
+.chat-head-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.chat-body { display: flex; flex-direction: column; gap: 12px; }
+.chat-body[hidden], .ai-setup[hidden] { display: none; }
+.ai-setup { padding: 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.ai-setup-wide { grid-column: 1 / -1; margin: 0; }
+.ai-setup a { color: var(--accent); }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {

@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "description": "Shows devices connected to your home network and tracks your SIM data balance.",
   "main": "server.js",
+  "license": "MIT",
+  "author": "George Junior Boadu",
   "private": true,
   "scripts": {
     "start": "node server.js",

@@ -73,6 +73,7 @@ if (!window.netmon) {
 
     // Ask AI
     aiStatus: () => call('GET', '/api/ai/status'),
+    aiSaveSettings: (settings) => call('POST', '/api/ai/settings', settings),
     aiChat: (messages, context) => call('POST', '/api/ai/chat', { messages, context }),
 
     // This PC's Wi-Fi

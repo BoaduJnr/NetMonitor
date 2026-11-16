@@ -258,7 +258,7 @@ function syncWifiNames(id, names) {
 // ---------- Ask AI ----------
 const readData = () => { try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch { return null; } };
 const assistant = new Assistant({
-  envDirs: [ROOT, APP_DIR], // %APPDATA%\Home Network Monitor\.env wins over one next to server.js
+  settingsFile: path.join(APP_DIR, 'ai.json'), // service, model and key the user set in Ask AI › AI settings
   tools: buildTools({
     store, DRIVERS, runScan, lastScan: () => lastScanResult, pcWifiSummary, wifiPairs,
     ontStatus, ontReading, readData, thisPcMacs: () => thisPcMacs()
@@ -443,6 +443,10 @@ async function handleApi(req, res, pathname) {
 
   // ---- Ask AI ----
   if (req.method === 'GET' && pathname === '/api/ai/status') return sendJson(res, assistant.status());
+  if (req.method === 'POST' && pathname === '/api/ai/settings') {
+    try { return sendJson(res, await assistant.saveSettings(await jsonBody(req))); }
+    catch (e) { return sendJson(res, { error: e.message }, 400); }
+  }
   if (req.method === 'POST' && pathname === '/api/ai/chat') {
     const { messages, context } = await jsonBody(req);
     if (!Array.isArray(messages) || !messages.length) return sendJson(res, { error: 'Ask a question first.' }, 400);

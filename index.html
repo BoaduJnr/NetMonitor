@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>Home Network Monitor</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="icon.ico">
+  <script src="theme.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5 12.6a10 10 0 0 1 14 0"/><path d="M8.5 16.3a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1.2" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>Home Network</h1>
+        <p id="status" class="status-line">Starting…</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="aboutBtn" class="icon-btn" type="button" title="About Home Network Monitor" aria-label="About Home Network Monitor and its developer">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9.2"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button id="themeBtn" class="icon-btn" type="button" title="Switch light / dark theme" aria-label="Switch light or dark theme">
+        <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2 12h2.2M19.8 12H22M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg>
+        <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
+      </button>
+      <label class="toggle"><input type="checkbox" id="auto" checked><span>Auto-scan every minute</span></label>
+      <button id="scanBtn" class="primary with-icon" type="button">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        <span id="scanBtnText">Scan now</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Which router you're looking at: one button per saved router, built by renderer.js -->
+  <nav class="router-switch" id="routerSwitch" aria-label="Router"></nav>
+
+  <!-- The background service stopped (e.g. after the PC slept): explain, and retry -->
+  <div class="router-bar card offline-bar" id="offlineBar" role="alert" hidden>
+    <p><strong>The monitor's background service has stopped.</strong> Reopen <strong>Home Network Monitor</strong> from its shortcut to start it again. This page will carry on by itself once it's back.</p>
+    <button id="offlineRetry" class="primary" type="button">Try again</button>
+  </div>
+
+  <!-- This PC is on a network whose router isn't saved yet -->
+  <div class="router-bar card" id="unknownNetBar" hidden>
+    <p id="unknownNetText"></p>
+    <button id="unknownNetAdd" class="primary" type="button">Add this router</button>
+  </div>
+
+  <!-- 4G (mobile) dashboard -->
+  <section class="stats" data-kind="mobile">
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Devices online</span>
+        <span id="statDevices" class="value">–</span>
+        <span id="statDevicesSub" class="sub"></span>
+      </div>
+      <svg class="ring" viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="ring-track" cx="32" cy="32" r="26"/>
+        <circle id="ringAsleep" class="ring-seg warn" cx="32" cy="32" r="26" stroke-dasharray="0 999"/>
+        <circle id="ringOnline" class="ring-seg good" cx="32" cy="32" r="26" stroke-dasharray="0 999"/>
+      </svg>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Mobile signal</span>
+        <span id="statSignal" class="value">–</span>
+        <span id="statSignalSub" class="sub"></span>
+      </div>
+      <svg class="bars" id="bars4g" viewBox="0 0 44 36" aria-hidden="true">
+        <rect x="0" y="28" width="6" height="8" rx="2"/><rect x="9.5" y="22" width="6" height="14" rx="2"/><rect x="19" y="15" width="6" height="21" rx="2"/><rect x="28.5" y="8" width="6" height="28" rx="2"/><rect x="38" y="0" width="6" height="36" rx="2"/>
+      </svg>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Internet</span>
+        <span id="statNet" class="value">–</span>
+        <span id="statNetSub" class="sub"></span>
+      </div>
+      <svg class="spark" id="spark4g" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><polyline points=""/><circle r="0" cx="0" cy="0"/></svg>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Data left</span>
+        <span id="statData" class="value">–</span>
+        <span id="statDataSub" class="sub"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fibre dashboard -->
+  <section class="stats" data-kind="fibre" hidden>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Fibre status</span>
+        <span id="statFibre" class="value">–</span>
+        <span id="statFibreSub" class="sub"></span>
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Fibre signal</span>
+        <span id="statOptic" class="value">–</span>
+        <span id="statOpticSub" class="sub"></span>
+      </div>
+      <svg class="bars" id="barsFibre" viewBox="0 0 44 36" aria-hidden="true">
+        <rect x="0" y="28" width="6" height="8" rx="2"/><rect x="9.5" y="22" width="6" height="14" rx="2"/><rect x="19" y="15" width="6" height="21" rx="2"/><rect x="28.5" y="8" width="6" height="28" rx="2"/><rect x="38" y="0" width="6" height="36" rx="2"/>
+      </svg>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Internet</span>
+        <span id="statFibreNet" class="value">–</span>
+        <span id="statFibreNetSub" class="sub"></span>
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Phone line</span>
+        <span id="statPhone" class="value">–</span>
+        <span id="statPhoneSub" class="sub"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Basic dashboard for routers the app can't log in to yet -->
+  <section class="stats" data-kind="generic" hidden>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Router</span>
+        <span id="statGenReach" class="value">–</span>
+        <span id="statGenReachSub" class="sub"></span>
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Devices online</span>
+        <span id="statGenDevices" class="value">–</span>
+        <span id="statGenDevicesSub" class="sub"></span>
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Internet</span>
+        <span id="statGenNet" class="value">–</span>
+        <span id="statGenNetSub" class="sub"></span>
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="stat-body">
+        <span class="label">Model</span>
+        <span id="statGenModel" class="value small-value">–</span>
+        <span id="statGenModelSub" class="sub"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fibre: how fresh the readings are, and the check button -->
+  <div class="router-bar card" id="fibreBar" hidden>
+    <p id="fibreWhen" class="muted"></p>
+    <p id="fibreError" class="bad"></p>
+    <button id="fibreCheck" class="primary" type="button">Check now</button>
+  </div>
+
+  <nav class="subnav" role="tablist" aria-label="Section">
+    <button class="sub-tab active" data-section="connections" role="tab">Connections</button>
+    <button class="sub-tab" data-section="data" role="tab">Data</button>
+    <button class="sub-tab" data-section="calls" role="tab">Calls</button>
+    <button class="sub-tab" data-section="sms" role="tab">SMS <span id="smsBadge" class="badge" hidden></span></button>
+    <button class="sub-tab" data-section="info" role="tab">Information</button>
+    <button class="sub-tab" data-section="map" role="tab">Map</button>
+    <button class="sub-tab ai-tab" data-section="ai" role="tab">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+      Ask AI
+    </button>
+  </nav>
+
+  <main>
+    <!-- ===================== Every router ===================== -->
+    <section class="panel" data-kind="*" data-section="connections">
+      <div class="card table-card">
+        <div class="table-wrap">
+          <table class="dev-table" id="devTable">
+            <thead><tr><th>Device</th><th>Status</th><th>Wi-Fi</th><th>IP address</th><th>Response</th><th>Last seen</th><th>Notes</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="hint" id="devHint"></p>
+      </div>
+    </section>
+
+    <section class="panel" data-kind="*" data-section="map" hidden>
+      <div class="map-layout">
+        <div class="card map-card">
+          <svg id="netMap" class="net-map" viewBox="0 0 960 620" role="img" aria-label="Map of the devices on this router's network"></svg>
+          <div class="map-legend">
+            <span><i class="lg-dot online"></i>Online</span>
+            <span><i class="lg-dot asleep"></i>Asleep</span>
+            <span><i class="lg-dot offline"></i>Offline</span>
+            <span><i class="lg-line l5"></i>5 GHz</span>
+            <span><i class="lg-line l24"></i>2.4 GHz</span>
+            <span><i class="lg-line lwired"></i>Wired</span>
+            <span><i class="lg-line lunk"></i>Unknown</span>
+          </div>
+        </div>
+        <aside class="card map-detail" id="mapDetail"></aside>
+      </div>
+    </section>
+
+    <!-- ===================== 4G router ===================== -->
+    <section class="panel" data-kind="mobile" data-section="data" hidden>
+      <div class="two-col">
+        <div class="card">
+          <h2>Data left</h2>
+          <div id="balBig" class="big">–</div>
+          <p id="balWhen" class="muted"></p>
+          <p id="balRate"></p>
+          <p id="balDays"></p>
+          <p id="routerUsage" class="muted small"></p>
+
+          <h3>1. Check your balance</h3>
+          <div class="row">
+            <label for="ussd">Balance code</label>
+            <input id="ussd" placeholder="e.g. *138#" autocomplete="off">
+            <button id="checkNow" class="primary" type="button">Check now</button>
+          </div>
+          <p class="muted small">The router dials the code with its own SIM and shows the network's reply here. The code is saved for next time.</p>
+
+          <div id="ussdBox" class="inset" hidden>
+            <div id="ussdReply" class="ussd-reply"></div>
+            <p id="ussdFound" class="small"></p>
+            <form id="ussdReplyForm" class="row" hidden>
+              <input id="ussdReplyInput" placeholder="Type a menu number, e.g. 1" autocomplete="off" aria-label="Reply">
+              <button type="submit">Send reply</button>
+              <button id="ussdCancel" type="button">End session</button>
+            </form>
+          </div>
+
+          <h3>2. Enter the balance it shows</h3>
+          <form id="balForm" class="row">
+            <input id="balValue" type="number" min="0" step="0.01" placeholder="4.5" required aria-label="Balance">
+            <select id="balUnit" aria-label="Unit"><option>GB</option><option>MB</option></select>
+            <button class="primary" type="submit">Save balance</button>
+          </form>
+          <p class="muted small">After two entries the app estimates how fast you use data and when it will run out.</p>
+        </div>
+
+        <div class="card table-card">
+          <h2>History</h2>
+          <div class="table-wrap">
+            <table id="histTable">
+              <thead><tr><th>When</th><th>Balance</th><th>Change</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p id="histEmpty" class="muted pad">No entries yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-kind="mobile" data-section="calls" hidden>
+      <div class="card narrow">
+        <h2>Calls</h2>
+        <div class="big muted-big">Not available</div>
+        <p>This router can't make or receive calls you can hear: it has no phone socket, microphone or speaker.</p>
+        <p class="muted">Its firmware also doesn't let the app see incoming calls, so there's no call log either. Calls to the router's SIM number go unanswered.</p>
+      </div>
+    </section>
+
+    <section class="panel" data-kind="mobile" data-section="sms" hidden>
+      <div class="two-col">
+        <div class="card">
+          <h2>New message</h2>
+          <p id="smsNoSend" class="banner bad flush" hidden>This router login isn't allowed to send texts. To send, enter a higher-level router account under Information › Router settings.</p>
+          <form id="smsForm" class="sms-form">
+            <label for="smsTo">To</label>
+            <input id="smsTo" inputmode="tel" placeholder="e.g. 0241234567" autocomplete="off" required>
+            <label for="smsText">Message</label>
+            <textarea id="smsText" rows="6" maxlength="640" required></textarea>
+            <div class="row between">
+              <span id="smsCount" class="muted small">0 / 640</span>
+              <button id="smsSend" class="primary" type="submit">Send</button>
+            </div>
+            <p id="smsFormMsg" class="small"></p>
+          </form>
+          <p class="muted small">Texts are sent from the router's SIM card and use its airtime. Emoji can't be sent.</p>
+        </div>
+
+        <div class="card table-card">
+          <div class="msg-head">
+            <div class="seg" role="tablist">
+              <button class="seg-btn active" data-box="inbox" type="button">Inbox</button>
+              <button class="seg-btn" data-box="sent" type="button">Sent</button>
+            </div>
+            <div class="row">
+              <button id="smsRefresh" type="button">Refresh</button>
+              <button id="smsDeleteAll" type="button">Delete all</button>
+            </div>
+          </div>
+          <p id="smsFull" class="banner bad" hidden></p>
+          <p id="smsStatus" class="muted small pad"></p>
+          <ul id="smsList" class="msg-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-kind="mobile" data-section="info" hidden>
+      <div class="card table-card">
+        <h2>4G router</h2>
+        <table class="kv"><tbody id="info4g"></tbody></table>
+      </div>
+    </section>
+
+    <!-- ===================== Fibre router ===================== -->
+    <section class="panel" data-kind="fibre" data-section="data" hidden>
+      <div class="card narrow">
+        <h2>Fibre internet</h2>
+        <div id="fibreDataBig" class="big">–</div>
+        <p id="fibreDataText"></p>
+        <p class="muted">Fibre doesn't use a data balance or USSD codes: there's no SIM in it, so the app can't check a bundle the way it does for a 4G router. Fibre plans are billed on the account.</p>
+      </div>
+    </section>
+
+    <section class="panel" data-kind="fibre" data-section="calls" hidden>
+      <div class="two-col">
+        <div class="card">
+          <h2>Phone line</h2>
+          <div id="phoneBig" class="big">–</div>
+          <p id="phoneText"></p>
+          <p class="muted">Calls on this line use an ordinary home phone plugged into the router's <strong>TEL</strong> (phone) socket. The app shows the line's status; it can't place or answer calls itself.</p>
+        </div>
+        <div class="card table-card">
+          <h2>Line details</h2>
+          <table class="kv"><tbody id="phoneTable"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-kind="fibre" data-section="sms" hidden>
+      <div class="card narrow">
+        <h2>Text messages</h2>
+        <div id="fibreSmsBig" class="big muted-big">–</div>
+        <p id="fibreSmsText"></p>
+      </div>
+    </section>
+
+    <section class="panel" data-kind="fibre" data-section="info" hidden>
+      <div class="two-col">
+        <div class="card">
+          <h2 id="fibreTitle">Fibre router</h2>
+          <div id="fibreBig" class="big">–</div>
+          <p id="fibreExplain"></p>
+          <p id="fibreHint" class="muted small"></p>
+          <div id="fibreMtn" class="inset" hidden>
+            <strong>What to tell your provider</strong>
+            <p id="fibreMtnText" class="small"></p>
+          </div>
+        </div>
+        <div class="card table-card">
+          <h2>Readings</h2>
+          <table class="kv" id="fibreTable"><tbody></tbody></table>
+          <p id="fibreEmpty" class="muted pad">No readings yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Basic (not yet supported) router ===================== -->
+    <section class="panel" data-kind="generic" data-section="info" hidden>
+      <div class="card table-card">
+        <h2>Router</h2>
+        <table class="kv"><tbody id="infoGeneric"></tbody></table>
+        <p class="hint">The app recognises this router but can't log in to it yet, so it shows basic information and the devices this PC finds when it's on this router's network.</p>
+      </div>
+    </section>
+
+    <!-- ===================== Ask AI (every router) ===================== -->
+    <section class="panel" data-kind="*" data-section="ai" hidden>
+      <div class="card chat-card">
+        <div class="chat-head">
+          <div>
+            <h2 id="aiTitle">Ask AI</h2>
+            <p class="muted small" id="aiModel">Answers use live readings from this router. Anything that changes something waits for your approval.</p>
+          </div>
+          <button id="aiClear" class="with-icon clear-chat" type="button" title="Clear this router's chat">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+            Clear chat
+          </button>
+        </div>
+        <div id="aiLog" class="chat-log" aria-live="polite"></div>
+        <div id="aiSuggest" class="chips chat-suggest"></div>
+        <form id="aiForm" class="chat-input">
+          <textarea id="aiInput" rows="2" placeholder="Ask about your routers, devices or connection…" aria-label="Your question"></textarea>
+          <button id="aiSend" class="primary" type="submit">Send</button>
+        </form>
+        <p class="muted small chat-privacy">Your question and the router readings needed to answer it are sent to NVIDIA's AI service. Passwords and Wi-Fi keys are never sent.</p>
+      </div>
+    </section>
+
+    <!-- ===================== Settings for the router shown (every router) ===================== -->
+    <section class="panel" data-kind="*" data-section="info">
+      <div class="card settings-card">
+        <h2>Router settings</h2>
+        <form id="rsForm" class="settings-grid">
+          <label>Name <input id="rsName" autocomplete="off"></label>
+          <label>Address <input id="rsHost" disabled></label>
+          <label>Username <input id="rsUser" autocomplete="off"></label>
+          <label>Password <input id="rsPass" type="password" autocomplete="new-password" placeholder="Unchanged"></label>
+          <label>5 GHz Wi-Fi name <input id="rsSsid5" autocomplete="off" placeholder="e.g. MyRouter_5G"></label>
+          <label>2.4 GHz Wi-Fi name <input id="rsSsid24" autocomplete="off" placeholder="e.g. MyRouter_2.4G"></label>
+          <div class="settings-actions">
+            <button class="primary" type="submit">Save</button>
+            <button id="rsRemove" class="danger-btn" type="button">Remove router</button>
+          </div>
+        </form>
+        <p id="rsMsg" class="muted small">Stored on this PC only. The Wi-Fi names let the app switch bands and do quick checks on routers that don't report them.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Add a router by its address -->
+  <dialog id="addDlg" class="dialog" aria-labelledby="addTitle">
+    <form id="addForm" method="dialog" class="dialog-body">
+      <h2 id="addTitle">Add a router</h2>
+      <p class="muted small">Type the router's address. The app identifies it without logging in, then tests your login once before saving.</p>
+      <div class="row">
+        <input id="addHost" placeholder="192.168.1.1" inputmode="decimal" autocomplete="off" aria-label="Router address" required>
+        <button id="addDetect" type="button">Detect</button>
+      </div>
+      <div class="chips" id="addSuggest"></div>
+      <div id="addResult" class="inset" hidden></div>
+      <div id="addFields" hidden>
+        <div class="settings-grid">
+          <label>Type
+            <select id="addDriver">
+              <option value="zlt">ZLT 4G router (MTN TurboNet)</option>
+              <option value="huawei-ont">Huawei fibre router (ONT)</option>
+              <option value="huawei-hilink">Huawei 4G/5G router (HiLink) · basic</option>
+              <option value="zte-mf">ZTE 4G/5G router · basic</option>
+              <option value="generic">Other router · basic</option>
+            </select>
+          </label>
+          <label>Name <input id="addName" autocomplete="off" placeholder="e.g. Office router"></label>
+          <label class="login-field">Username <input id="addUser" autocomplete="off"></label>
+          <label class="login-field">Password <input id="addPass" type="password" autocomplete="new-password"></label>
+          <label>5 GHz Wi-Fi name <input id="addSsid5" autocomplete="off" placeholder="Found automatically if left empty"></label>
+          <label>2.4 GHz Wi-Fi name <input id="addSsid24" autocomplete="off" placeholder="Found automatically if left empty"></label>
+        </div>
+      </div>
+      <p id="addMsg" class="small"></p>
+      <div class="dialog-actions">
+        <button id="addCancel" type="button">Cancel</button>
+        <button id="addSave" class="primary" type="button" disabled>Add router</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- About the app and its developer -->
+  <dialog id="aboutDlg" class="dialog about-dlg" aria-labelledby="aboutTitle">
+    <div class="dialog-body">
+      <div class="about-app">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5 12.6a10 10 0 0 1 14 0"/><path d="M8.5 16.3a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1.2" fill="currentColor" stroke="none"/></svg>
+        </div>
+        <div>
+          <h2 id="aboutTitle">Home Network Monitor</h2>
+          <p class="muted small" id="aboutVersion">Version –</p>
+        </div>
+      </div>
+      <p class="muted about-desc">Watches your home routers and the devices on them, tracks your data balance, and runs entirely on this PC.</p>
+
+      <section class="about-dev inset" aria-labelledby="aboutDevName">
+        <span class="about-eyebrow">Developer</span>
+        <div class="about-person">
+          <div class="about-avatar" aria-hidden="true">GB</div>
+          <div>
+            <p class="about-name" id="aboutDevName">George Junior Boadu</p>
+            <p class="muted small">Backend / AI engineer</p>
+          </div>
+        </div>
+        <p class="about-pitch"><strong>Let's build something together.</strong> Based in Accra, Ghana and open to remote opportunities.</p>
+        <ul class="about-contacts">
+          <li>
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>
+            <a href="mailto:georgejunior.boadu@gmail.com?subject=Home%20Network%20Monitor">georgejunior.boadu@gmail.com</a>
+            <button class="link about-copy" type="button" data-copy="georgejunior.boadu@gmail.com" aria-label="Copy email address">Copy</button>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3.5h3.2l1.6 4.3-2.2 1.4a11 11 0 0 0 5.2 5.2l1.4-2.2 4.3 1.6V17a2.5 2.5 0 0 1-2.7 2.5A16.5 16.5 0 0 1 2.5 6.2 2.5 2.5 0 0 1 5 3.5z"/></svg>
+            <a href="tel:+233542352886">+233 54 235 2886</a>
+            <button class="link about-copy" type="button" data-copy="+233542352886" aria-label="Copy phone number">Copy</button>
+          </li>
+        </ul>
+      </section>
+
+      <div class="dialog-actions about-actions">
+        <span class="muted small" id="aboutCopyright">© George Junior Boadu</span>
+        <a class="button primary" href="mailto:georgejunior.boadu@gmail.com?subject=Home%20Network%20Monitor">Send an email</a>
+        <button id="aboutClose" type="button" autofocus>Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="web-bridge.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

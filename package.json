@@ -1,0 +1,12 @@
+{
+  "name": "home-network-monitor",
+  "productName": "Home Network Monitor",
+  "version": "1.0.0",
+  "description": "Shows devices connected to your home network and tracks your SIM data balance.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dist": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/build.ps1"
+  }
+}
